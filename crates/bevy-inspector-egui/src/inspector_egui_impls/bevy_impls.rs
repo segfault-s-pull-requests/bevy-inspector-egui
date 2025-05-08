@@ -74,6 +74,7 @@ impl InspectorPrimitive for Entity {
                             ui,
                             id,
                             env.type_registry,
+                            None,
                         );
                         if options.despawnable && world.contains_entity(entity) {
                             if let Some(queue) = queue {
@@ -281,7 +282,9 @@ impl InspectorPrimitive for Color {
             | Color::Oklaba(_)
             | Color::Oklcha(_)
             | Color::Xyza(_) => {
-                ui.label(format!("Colorspace of {self:?} is not supported yet. PRs welcome"));
+                ui.label(format!(
+                    "Colorspace of {self:?} is not supported yet. PRs welcome"
+                ));
                 return false;
             }
         }

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use crate::bevy_inspector::{EntityFilter, Filter};
 use crate::utils::guess_entity_name;
+use bevy_ecs::system::SystemIdMarker;
 use bevy_ecs::{prelude::*, query::QueryFilter};
 use bevy_hierarchy::{Children, Parent};
 use bevy_reflect::TypeRegistry;
@@ -62,7 +63,7 @@ impl<T> Hierarchy<'_, T> {
         QF: QueryFilter,
         F: EntityFilter,
     {
-        let mut root_query = self.world.query_filtered::<Entity, (Without<Parent>, QF)>();
+        let mut root_query = self.world.query_filtered::<Entity, (Without<Parent>, Without<Observer>, Without<SystemIdMarker>, QF)>();
 
         let always_open: HashSet<Entity> = self
             .selected

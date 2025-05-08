@@ -38,16 +38,20 @@
 //! ```
 
 use std::any::TypeId;
+use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use crate::utils::{pretty_type_name, pretty_type_name_str};
 use bevy_asset::{Asset, AssetServer, Assets, ReflectAsset, UntypedAssetId};
+use bevy_ecs::component;
 use bevy_ecs::query::{QueryFilter, WorldQuery};
+use bevy_ecs::system::SystemIdMarker;
 use bevy_ecs::world::CommandQueue;
 use bevy_ecs::{component::ComponentId, prelude::*};
 use bevy_hierarchy::{Children, Parent};
 use bevy_reflect::{Reflect, TypeRegistry};
 use bevy_state::state::{FreelyMutableState, NextState, State};
+use bevy_utils::default;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 
@@ -257,8 +261,13 @@ pub fn ui_for_world_entities_filtered<QF: WorldQuery + QueryFilter>(
 
 /// Display all root entities.
 pub fn ui_for_entities(world: &mut World, ui: &mut egui::Ui) {
-    let filter: Filter = Filter::from_ui_fuzzy(ui, egui::Id::new("default_world_entities_filter"));
-    ui_for_entities_filtered(world, ui, true, &filter);
+    let filter: Filter<(Without<Parent>,Without<Observer>,Without<SystemIdMarker>)> = Filter::from_ui_fuzzy(ui, egui::Id::new("default_world_entities_filter"));
+    if !filter.word.is_empty() {
+        let filter: Filter<(Without<Observer>, Without<SystemIdMarker>)> = Filter { word: filter.word, is_fuzzy: filter.is_fuzzy, marker: default() };
+        ui_for_entities_filtered(world, ui, true, &filter);
+    }else{
+        ui_for_entities_filtered(world, ui, true, &filter);
+    }
 }
 
 /// Display all entities matching the given [`EntityFilter`].
@@ -310,6 +319,7 @@ pub fn ui_for_entities_filtered<F>(
                         ui,
                         id,
                         &type_registry,
+                        None,
                     );
                     queue.apply(world);
                 }
@@ -514,6 +524,7 @@ fn ui_for_entity_with_children_inner<F>(
         ui,
         id,
         type_registry,
+        None,
     );
 
     let children = world
@@ -550,6 +561,16 @@ fn ui_for_entity_with_children_inner<F>(
 
 /// Display the components of the given entity
 pub fn ui_for_entity(world: &mut World, entity: Entity, ui: &mut egui::Ui) {
+    ui_for_entity_with_components(world, entity, None, ui);
+}
+
+/// Display certain components of the given entity
+pub fn ui_for_entity_with_components(
+    world: &mut World,
+    entity: Entity,
+    components: Option<&[ComponentId]>,
+    ui: &mut egui::Ui,
+) {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
@@ -562,8 +583,9 @@ pub fn ui_for_entity(world: &mut World, entity: Entity, ui: &mut egui::Ui) {
         Some(&mut queue),
         entity,
         ui,
-        egui::Id::new(entity),
+        ui.id().with(entity),
         &type_registry,
+        components,
     );
     queue.apply(world);
 }
@@ -576,82 +598,123 @@ pub(crate) fn ui_for_entity_components(
     ui: &mut egui::Ui,
     id: egui::Id,
     type_registry: &TypeRegistry,
+    filter_components: Option<&[ComponentId]>,
 ) {
     let Some(components) = components_of_entity(world, entity) else {
         errors::entity_does_not_exist(ui, entity);
         return;
     };
 
-    for (name, component_id, component_type_id, size) in components {
-        let id = id.with(component_id);
+    let mut draw_components = |ui: &mut egui::Ui, cs: Vec<&(String, ComponentId, Option<TypeId>, usize)>|{
+        for c in cs {
+            let (name, component_id, component_type_id, size) = c.clone();
+            let id = id.with(component_id);
 
-        let header = egui::CollapsingHeader::new(&name).id_salt(id);
+            let header = egui::CollapsingHeader::new(&name).id_salt(id);
 
-        let Some(component_type_id) = component_type_id else {
-            header.show(ui, |ui| errors::no_type_id(ui, &name));
-            continue;
-        };
+            let Some(component_type_id) = component_type_id else {
+                header.show(ui, |ui| errors::no_type_id(ui, &name));
+                continue;
+            };
 
-        #[cfg(feature = "documentation")]
-        let type_docs = type_registry
-            .get_type_info(component_type_id)
-            .and_then(|info| info.docs());
+            #[cfg(feature = "documentation")]
+            let type_docs = type_registry
+                .get_type_info(component_type_id)
+                .and_then(|info| info.docs());
 
-        if size == 0 {
-            ui.indent(id, |ui| {
-                let _response = ui.label(&name);
-                #[cfg(feature = "documentation")]
-                crate::egui_utils::show_docs(_response, type_docs);
-            });
-            continue;
-        }
-
-        // create a context with access to the world except for the currently viewed component
-        let (mut component_view, world) = world.split_off_component((entity, component_type_id));
-        let mut cx = Context {
-            world: Some(world),
-            #[allow(clippy::needless_option_as_deref)]
-            queue: queue.as_deref_mut(),
-        };
-
-        let mut value = match component_view.get_entity_component_reflect(
-            entity,
-            component_type_id,
-            type_registry,
-        ) {
-            Ok(value) => value,
-            Err(e) => {
+            if size == 0 {
                 ui.indent(id, |ui| {
-                    let response = ui.label(egui::RichText::new(&name).underline());
-                    response.on_hover_ui(|ui| errors::show_error(e, ui, &name));
+                    let _response = ui.label(&name);
+                    #[cfg(feature = "documentation")]
+                    crate::egui_utils::show_docs(_response, type_docs);
                 });
                 continue;
             }
-        };
 
-        if value.is_changed() {
-            #[cfg(feature = "highlight_changes")]
-            set_highlight_style(ui);
+            // create a context with access to the world except for the currently viewed component
+            let (mut component_view, world) = world.split_off_component((entity, component_type_id));
+            let mut cx = Context {
+                world: Some(world),
+                #[allow(clippy::needless_option_as_deref)]
+                queue: queue.as_deref_mut(),
+            };
+
+            let mut value = match component_view.get_entity_component_reflect(
+                entity,
+                component_type_id,
+                type_registry,
+            ) {
+                Ok(value) => value,
+                Err(e) => {
+                    ui.indent(id, |ui| {
+                        let response = ui.label(egui::RichText::new(&name).underline());
+                        response.on_hover_ui(|ui| errors::show_error(e, ui, &name));
+                    });
+                    continue;
+                }
+            };
+
+            if value.is_changed() {
+                #[cfg(feature = "highlight_changes")]
+                set_highlight_style(ui);
+            }
+
+            let _response = header.show(ui, |ui| {
+                ui.reset_style();
+
+                let inspector_changed = InspectorUi::for_bevy(type_registry, &mut cx)
+                    .ui_for_reflect_with_options(
+                        value.bypass_change_detection().as_partial_reflect_mut(),
+                        ui,
+                        id.with(component_id),
+                        &(),
+                    );
+
+                if inspector_changed {
+                    value.set_changed();
+                }
+            });
+            #[cfg(feature = "documentation")]
+            crate::egui_utils::show_docs(_response.header_response, type_docs);
+            ui.reset_style();
+        }
+    };
+
+    if filter_components.is_some() {
+        let filter_components : Vec<_> = filter_components.unwrap()
+            .into_iter()
+            .map(|f| components.iter().find(|c| c.1 == *f)).filter_map(|a|a).collect();
+
+        draw_components(ui, filter_components);
+    } else {
+        let mut module_to_components: HashMap<String, Vec<&(String, ComponentId, Option<TypeId>, usize)>> = HashMap::new();
+
+        for c in components.iter() {
+            let module = c.2.and_then(|id| type_registry.get_type_info(id))
+               .map(|info| {
+                    info.type_path().split("::").next().unwrap()
+               }).unwrap_or_default();
+
+            module_to_components
+                .entry(module.to_string())
+                .or_insert_with(Vec::new)
+                .push(c);
         }
 
-        let _response = header.show(ui, |ui| {
-            ui.reset_style();
+        for components in module_to_components.values_mut() {
+            components.sort_by(|a, b| a.0.cmp(&b.0));
+        }
 
-            let inspector_changed = InspectorUi::for_bevy(type_registry, &mut cx)
-                .ui_for_reflect_with_options(
-                    value.bypass_change_detection().as_partial_reflect_mut(),
-                    ui,
-                    id.with(component_id),
-                    &(),
-                );
+        let mut sorted_modules: Vec<_> = module_to_components.keys().cloned().collect();
+        sorted_modules.sort();
 
-            if inspector_changed {
-                value.set_changed();
-            }
-        });
-        #[cfg(feature = "documentation")]
-        crate::egui_utils::show_docs(_response.header_response, type_docs);
-        ui.reset_style();
+        for key in sorted_modules {
+            let id = id.with(&key);
+            let header = egui::CollapsingHeader::new(&key).id_salt(id);
+            header.show(ui, |ui|
+                draw_components(ui, module_to_components.get(&key).unwrap().clone())
+            );
+        }
     }
 }
 
