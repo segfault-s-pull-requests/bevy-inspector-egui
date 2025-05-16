@@ -502,7 +502,7 @@ impl InspectorUi<'_, '_> {
 
                 let _response = ui.label(field_info.name());
                 #[cfg(feature = "documentation")]
-                show_docs(_response, field_info.docs());
+                show_docs(_response, field_info.docs(), Some(field_info.type_path()));
 
                 let field = value.field_at_mut(i).unwrap();
                 changed |= self.ui_for_reflect_with_options(
@@ -534,7 +534,7 @@ impl InspectorUi<'_, '_> {
 
                 let _response = ui.label(field_info.name());
                 #[cfg(feature = "documentation")]
-                show_docs(_response, field_info.docs());
+                show_docs(_response, field_info.docs(), Some(field_info.type_path()));
 
                 let field = value.field_at(i).unwrap();
                 self.ui_for_reflect_readonly_with_options(
@@ -562,7 +562,7 @@ impl InspectorUi<'_, '_> {
             for (i, field) in info.iter().enumerate() {
                 let _response = ui.label(field.name());
                 #[cfg(feature = "documentation")]
-                show_docs(_response, field.docs());
+                show_docs(_response, field.docs(), Some(field.type_path()));
 
                 changed |= self.ui_for_reflect_many_with_options(
                     field.type_id(),
@@ -1477,9 +1477,9 @@ impl InspectorUi<'_, '_> {
                         .map(|i| {
                             if label {
                                 #[cfg(feature = "documentation")]
-                                let field_docs = type_info.variant_at(variant_index).and_then(
+                                let field_info = type_info.variant_at(variant_index).and_then(
                                     |info| match info {
-                                        VariantInfo::Struct(info) => info.field_at(i)?.docs(),
+                                        VariantInfo::Struct(info) => info.field_at(i),
                                         _ => None,
                                     },
                                 );
@@ -1490,7 +1490,9 @@ impl InspectorUi<'_, '_> {
                                     ui.label(i.to_string())
                                 };
                                 #[cfg(feature = "documentation")]
-                                show_docs(_response, field_docs);
+                                if let Some(field_info) = field_info {
+                                    show_docs(_response, field_info.docs(), Some(field_info.type_path()));
+                                }
                             }
                             let field_value = value
                                 .field_at_mut(i)

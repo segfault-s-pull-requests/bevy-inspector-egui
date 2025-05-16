@@ -97,7 +97,7 @@ pub fn down_button(ui: &mut egui::Ui) -> egui::Response {
     IconButton::new(ui).down_button()
 }
 
-pub fn show_docs(response: egui::Response, docs: Option<&str>) {
+pub fn show_docs(response: egui::Response, docs: Option<&str>, type_path: Option<&str>) {
     if let Some(docs) = docs {
         let mut end_idx = docs.len();
         for (idx, ..) in docs.rmatch_indices("\n") {
@@ -110,8 +110,18 @@ pub fn show_docs(response: egui::Response, docs: Option<&str>) {
         }
 
         response.on_hover_ui(|ui| {
+            if let Some(path) = type_path {
+                ui.label(path);
+                ui.separator();
+            }
             easymark(ui, &docs[..end_idx]);
         });
+    }else {
+        if let Some(path) = type_path {
+            response.on_hover_ui(|ui| {
+                ui.label(path);
+            });
+        }
     }
 }
 

@@ -63,7 +63,12 @@ impl<T> Hierarchy<'_, T> {
         QF: QueryFilter,
         F: EntityFilter,
     {
-        let mut root_query = self.world.query_filtered::<Entity, (Without<Parent>, Without<Observer>, Without<SystemIdMarker>, QF)>();
+        let mut root_query = self.world.query_filtered::<Entity, (
+            Without<Parent>,
+            Without<Observer>,
+            Without<SystemIdMarker>,
+            QF,
+        )>();
 
         let always_open: HashSet<Entity> = self
             .selected
@@ -204,7 +209,7 @@ fn paint_default_icon(ui: &mut egui::Ui, openness: f32, response: &egui::Respons
 }
 
 /// Collection of currently selected entities
-#[derive(Default, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct SelectedEntities {
     entities: Vec<Entity>,
     last_action: Option<(SelectionMode, Entity)>,
