@@ -43,18 +43,21 @@ use std::marker::PhantomData;
 use std::vec;
 
 use crate::utils::{pretty_type_name, pretty_type_name_str};
-use bevy_asset::{Asset, AssetServer, Assets, ReflectAsset, UntypedAssetId};
+use bevy_asset::{Asset, AssetId, AssetServer, Assets, ReflectAsset, UntypedAssetId};
 use bevy_ecs::component::{self, ComponentInfo};
 use bevy_ecs::query::{QueryFilter, WorldQuery};
 use bevy_ecs::system::SystemIdMarker;
 use bevy_ecs::world::CommandQueue;
 use bevy_ecs::{component::ComponentId, prelude::*};
+use bevy_gltf::Gltf;
 use bevy_hierarchy::{Children, Parent};
 use bevy_reflect::{Reflect, TypeInfo, TypeRegistry};
+use bevy_scene::Scene;
 use bevy_state::state::{FreelyMutableState, NextState, State};
 use bevy_utils::default;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use image::codecs::webp;
 
 pub(crate) mod errors;
 
@@ -98,7 +101,70 @@ pub fn ui_for_world(world: &mut World, ui: &mut egui::Ui) {
     });
     egui::CollapsingHeader::new("Assets").show(ui, |ui| {
         ui_for_all_assets(world, ui);
+
+        ui_for_scenes(world, ui);
+        // ui_for_gltf(world, ui);
     });
+}
+
+// pub fn ui_for_gltf(world: &mut World, ui: &mut egui::Ui) {
+//     let type_registry = world.resource::<AppTypeRegistry>().clone();
+//     let Some(asset_server) = world.get_resource::<AssetServer>().cloned() else {
+//         errors::resource_does_not_exist(ui, "AssetServer");
+//         return;
+//     };
+
+//     type R = Assets<Gltf>;
+//     let Some((mut assets, world_view)) =
+//         RestrictedWorldView::new(world).split_off_resource_typed::<R>()
+//     else {
+//         errors::resource_does_not_exist(ui, &pretty_type_name::<R>());
+//         return;
+//     };
+
+//     for (id, gltf) in assets.iter_mut() {
+//         let gui_id = match id {
+//             AssetId::Index { index: id, .. } => ui.auto_id_with(id),
+//             AssetId::Uuid { uuid: id } => ui.auto_id_with(id),
+//         };
+
+//         egui::CollapsingHeader::new(handle_name(id.untyped(), Some(&asset_server)))
+//             .id_salt(gui_id)
+//             .show(ui, |ui| {
+
+//             });
+//     }
+// }
+
+pub fn ui_for_scenes(world: &mut World, ui: &mut egui::Ui) {
+    let type_registry = world.resource::<AppTypeRegistry>().clone();
+    let Some(asset_server) = world.get_resource::<AssetServer>().cloned() else {
+        errors::resource_does_not_exist(ui, "AssetServer");
+        return;
+    };
+
+    type R = Assets<Scene>;
+    let Some((mut assets, world_view)) =
+        RestrictedWorldView::new(world).split_off_resource_typed::<R>()
+    else {
+        errors::resource_does_not_exist(ui, &pretty_type_name::<R>());
+        return;
+    };
+
+    for (id, scene) in assets.iter_mut() {
+        let gui_id = match id {
+            AssetId::Index { index: id, .. } => ui.auto_id_with(id),
+            AssetId::Uuid { uuid: id } => ui.auto_id_with(id),
+        };
+
+        egui::CollapsingHeader::new(handle_name(id.untyped(), Some(&asset_server)))
+            .id_salt(gui_id)
+            .show(ui, |ui| {
+                scene.world.insert_resource(type_registry.clone());
+                ui_for_world(&mut scene.world, ui);
+                scene.world.remove_resource::<AppTypeRegistry>();
+            });
+    }
 }
 
 /// Display all reflectable resources in the world
@@ -149,6 +215,18 @@ pub fn ui_for_resource<R: Resource + Reflect>(world: &mut World, ui: &mut egui::
 
     queue.apply(world);
 }
+
+// pub fn ui_for_all_assets(world: &mut World, ui: &mut egui::Ui) {
+//     let Some(asset_server) = world.get_resource::<AssetServer>().cloned() else {
+//         errors::resource_does_not_exist(ui, "AssetServer");
+//         return;
+//     };
+
+//     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
+//     let type_registry = type_registry.read();
+
+//     asset_server.
+// }
 
 /// Display all reflectable assets
 pub fn ui_for_all_assets(world: &mut World, ui: &mut egui::Ui) {
@@ -262,11 +340,16 @@ pub fn ui_for_world_entities_filtered<QF: WorldQuery + QueryFilter>(
 
 /// Display all root entities.
 pub fn ui_for_entities(world: &mut World, ui: &mut egui::Ui) {
-    let filter: Filter<(Without<Parent>,Without<Observer>,Without<SystemIdMarker>)> = Filter::from_ui_fuzzy(ui, egui::Id::new("default_world_entities_filter"));
+    let filter: Filter<(Without<Parent>, Without<Observer>, Without<SystemIdMarker>)> =
+        Filter::from_ui_fuzzy(ui, egui::Id::new("default_world_entities_filter"));
     if !filter.word.is_empty() {
-        let filter: Filter<(Without<Observer>, Without<SystemIdMarker>)> = Filter { word: filter.word, is_fuzzy: filter.is_fuzzy, marker: default() };
+        let filter: Filter<(Without<Observer>, Without<SystemIdMarker>)> = Filter {
+            word: filter.word,
+            is_fuzzy: filter.is_fuzzy,
+            marker: default(),
+        };
         ui_for_entities_filtered(world, ui, true, &filter);
-    }else{
+    } else {
         ui_for_entities_filtered(world, ui, true, &filter);
     }
 }
@@ -613,7 +696,7 @@ pub(crate) fn ui_for_entity_component(
     indent_level: usize,
 ) {
     let id = id.with(c.component_id);
-    let mut name = c.name.to_string(); 
+    let mut name = c.name.to_string();
     if indent_level > 0 {
         name = "|".repeat(indent_level) + " " + &name;
     }
@@ -680,7 +763,11 @@ pub(crate) fn ui_for_entity_component(
         }
     });
     #[cfg(feature = "documentation")]
-    crate::egui_utils::show_docs(_response.header_response, type_docs, Some(type_info.type_path()));
+    crate::egui_utils::show_docs(
+        _response.header_response,
+        type_docs,
+        Some(type_info.type_path()),
+    );
     ui.reset_style();
 }
 
@@ -699,35 +786,47 @@ pub(crate) fn ui_for_entity_components(
         return;
     };
 
-    let mut components : HashMap<_,_> = components.into_iter().filter(|c|{
-            filter_components.is_none_or(|f| f.contains(&c.1) )
-        }).map( |c| {
+    let mut components: HashMap<_, _> = components
+        .into_iter()
+        .filter(|c| filter_components.is_none_or(|f| f.contains(&c.1)))
+        .map(|c| {
             let type_info = c.2.and_then(|type_id| type_registry.get_type_info(type_id)); //TODO make refs
-            let crate_name = type_info.and_then(|info| info.type_path_table().crate_name() ).unwrap_or("");
+            let crate_name = type_info
+                .and_then(|info| info.type_path_table().crate_name())
+                .unwrap_or("");
             let component_info = world.world().components().get_info(c.1).unwrap();
 
-            let requires_within_module : Vec<_> = component_info.required_components().iter_ids().filter_map(|id| {
-                let type_id = world.world().components().get_info(id)?.type_id()?;
-                let type_info = type_registry.get_type_info(type_id);
-                let crate_name2 = type_info.and_then(|info| info.type_path_table().crate_name() ).unwrap_or("");
-                match crate_name == crate_name2 {
-                    true => Some(id),
-                    false => None
-                }
-            }).collect();
-            
-            (c.1, FooComponent {
-                name: c.0,
-                component_id: c.1,
-                type_info,
-                crate_name,
-                size: c.3,
-                requires_within_module,
-                required_by_within_module: vec![],
-                component_info,
-            })
-        }
-    ).collect();
+            let requires_within_module: Vec<_> = component_info
+                .required_components()
+                .iter_ids()
+                .filter_map(|id| {
+                    let type_id = world.world().components().get_info(id)?.type_id()?;
+                    let type_info = type_registry.get_type_info(type_id);
+                    let crate_name2 = type_info
+                        .and_then(|info| info.type_path_table().crate_name())
+                        .unwrap_or("");
+                    match crate_name == crate_name2 {
+                        true => Some(id),
+                        false => None,
+                    }
+                })
+                .collect();
+
+            (
+                c.1,
+                FooComponent {
+                    name: c.0,
+                    component_id: c.1,
+                    type_info,
+                    crate_name,
+                    size: c.3,
+                    requires_within_module,
+                    required_by_within_module: vec![],
+                    component_info,
+                },
+            )
+        })
+        .collect();
 
     // oops, *I am very smart: the language* strikes again
     // requires multible clones of collections simply to iterate mutably over a collection
@@ -735,18 +834,18 @@ pub(crate) fn ui_for_entity_components(
     // inb4, RefCell, I am not changing the type of my collection in order to facilitate single threaded local mutation.
     // it cannot even be accomplished with unsafe rust.
     // if you think this is okay you have stockholm syndrome
-    for k in components.keys().cloned().collect::<Vec<_>>(){
+    for k in components.keys().cloned().collect::<Vec<_>>() {
         for required in components[&k].requires_within_module.clone() {
             if let Some(v) = components.get_mut(&required) {
                 v.required_by_within_module.push(k)
             }
         }
     }
-        
+
     // let filter_components : Vec<_> = filter_components.unwrap()
     //     .into_iter()
     //     .map(|f| components.iter().find(|c| c.0 == f)).filter_map(|a|a).collect();
- 
+
     let mut module_to_components: HashMap<&str, Vec<ComponentId>> = HashMap::new();
 
     for c in components.iter() {
@@ -759,24 +858,31 @@ pub(crate) fn ui_for_entity_components(
     let mut sorted_modules: Vec<_> = module_to_components.keys().cloned().collect();
     sorted_modules.sort();
 
-    let mut drawn : HashSet<ComponentId> = default(); //TODO link to item in inspector instead of just not drawing
+    let mut drawn: HashSet<ComponentId> = default(); //TODO link to item in inspector instead of just not drawing
     for key in sorted_modules {
         let id = id.with(&key);
         let header = egui::CollapsingHeader::new(key).id_salt(id);
-        header.show(ui, |ui|{
-            let mut s : Vec<_> = module_to_components.get(key).unwrap().iter().filter(|a|{
-                components[*a].required_by_within_module.is_empty()
-            }).cloned().collect();
-            s.sort_by_key(|a| (
-                (-(components[a].requires_within_module.len() as i32), components[a].name.as_str())
-            ));
+        header.show(ui, |ui| {
+            let mut s: Vec<_> = module_to_components
+                .get(key)
+                .unwrap()
+                .iter()
+                .filter(|a| components[*a].required_by_within_module.is_empty())
+                .cloned()
+                .collect();
+            s.sort_by_key(|a| {
+                ((
+                    -(components[a].requires_within_module.len() as i32),
+                    components[a].name.as_str(),
+                ))
+            });
             s.reverse();
 
             let mut l = vec![0; s.len()];
-            while !s.is_empty(){
+            while !s.is_empty() {
                 let k = s.pop().unwrap();
                 let level = l.pop().unwrap();
-                if drawn.contains(&k){
+                if drawn.contains(&k) {
                     // don't draw components already drawn
                     continue;
                 }
@@ -793,9 +899,14 @@ pub(crate) fn ui_for_entity_components(
                 );
                 drawn.insert(c.component_id);
                 let mut requires = c.requires_within_module.clone();
-                requires.sort_by_key(|a| (components[a].requires_within_module.len(), components[a].name.as_str()));
+                requires.sort_by_key(|a| {
+                    (
+                        components[a].requires_within_module.len(),
+                        components[a].name.as_str(),
+                    )
+                });
                 requires.reverse();
-                for r in requires.iter(){
+                for r in requires.iter() {
                     // don't draw things already required by parent (minimal nesting)
                     if !s.contains(r) {
                         s.push(*r);
@@ -803,7 +914,7 @@ pub(crate) fn ui_for_entity_components(
                     }
                 }
             }
-    });
+        });
     }
 }
 
@@ -1132,7 +1243,7 @@ fn handle_name(handle: UntypedAssetId, asset_server: Option<&AssetServer>) -> St
 
     match handle {
         UntypedAssetId::Index { index, .. } => {
-            format!("{:?}", egui::Id::new(index))
+            format!("{}", index.to_bits())
         }
         UntypedAssetId::Uuid { uuid, .. } => {
             format!("{}", uuid)

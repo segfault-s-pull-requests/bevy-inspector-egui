@@ -1,13 +1,17 @@
 use bevy_color::{Color, Hsla, Hsva, Lcha, LinearRgba, Srgba};
+use bevy_core::Name;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::CommandQueue;
 use bevy_ecs::world::World;
 use egui::Color32;
 use std::any::Any;
+use std::any::TypeId;
 
 #[cfg(feature = "bevy_render")]
 use ::{
-    bevy_asset::Assets, bevy_asset::Handle, bevy_render::mesh::Mesh,
+    bevy_asset::Assets,
+    bevy_asset::Handle,
+    bevy_render::mesh::Mesh,
     bevy_render::view::RenderLayers,
 };
 
@@ -47,9 +51,23 @@ impl InspectorPrimitive for Entity {
             .cloned()
             .unwrap_or_default();
 
+        let mut name_str = None;
+        if let Some(world) = &mut env.context.world {
+            if let Ok(name) =
+                world.get_entity_component_reflect(*self, TypeId::of::<Name>(), env.type_registry)
+            {
+                let name = name.downcast_ref::<Name>().unwrap();
+                name_str = Some(name.as_str().to_string());
+            }
+        }
+
         match options.display {
             EntityDisplay::Id => {
-                ui.label(format!("{entity:?}"));
+                if let Some(n) = name_str {
+                    ui.label(format!("{entity:?} {n}"));
+                } else {
+                    ui.label(format!("{entity:?}"));
+                }
             }
             EntityDisplay::Components => {
                 let Context {
@@ -91,8 +109,28 @@ impl InspectorPrimitive for Entity {
         false
     }
 
-    fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) {
-        ui.label(format!("{self:?}"));
+    fn ui_readonly(
+        &self,
+        ui: &mut egui::Ui,
+        _: &dyn Any,
+        _: egui::Id,
+        mut env: InspectorUi<'_, '_>,
+    ) {
+        let mut name_str = None;
+        if let Some(world) = &mut env.context.world {
+            if let Ok(name) =
+                world.get_entity_component_reflect(*self, TypeId::of::<Name>(), env.type_registry)
+            {
+                let name = name.downcast_ref::<Name>().unwrap();
+                name_str = Some(name.as_str().to_string());
+            }
+        }
+
+        if let Some(n) = name_str {
+            ui.label(format!("{self:?} {n}"));
+        } else {
+            ui.label(format!("{self:?}"));
+        }
     }
 }
 

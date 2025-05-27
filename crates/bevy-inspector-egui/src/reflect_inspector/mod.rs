@@ -70,9 +70,28 @@ use crate::{
 use bevy_ecs::world::CommandQueue;
 use bevy_reflect::{std_traits::ReflectDefault, DynamicStruct};
 use bevy_reflect::{
-    Array, DynamicEnum, DynamicTuple, DynamicVariant, Enum, EnumInfo, List, ListInfo, Map, Reflect,
-    ReflectMut, ReflectRef, Struct, StructInfo, Tuple, TupleInfo, TupleStruct, TupleStructInfo,
-    TypeInfo, TypeRegistry, VariantInfo, VariantType,
+    Array,
+    DynamicEnum,
+    DynamicTuple,
+    DynamicVariant,
+    Enum,
+    EnumInfo,
+    List,
+    ListInfo,
+    Map,
+    Reflect,
+    ReflectMut,
+    ReflectRef,
+    Struct,
+    StructInfo,
+    Tuple,
+    TupleInfo,
+    TupleStruct,
+    TupleStructInfo,
+    TypeInfo,
+    TypeRegistry,
+    VariantInfo,
+    VariantType,
 };
 use bevy_reflect::{OpaqueInfo, PartialReflect, Set, SetInfo};
 use egui::{Grid, WidgetText};
@@ -1491,7 +1510,11 @@ impl InspectorUi<'_, '_> {
                                 };
                                 #[cfg(feature = "documentation")]
                                 if let Some(field_info) = field_info {
-                                    show_docs(_response, field_info.docs(), Some(field_info.type_path()));
+                                    show_docs(
+                                        _response,
+                                        field_info.docs(),
+                                        Some(field_info.type_path()),
+                                    );
                                 }
                             }
                             let field_value = value
