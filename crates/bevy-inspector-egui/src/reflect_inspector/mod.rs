@@ -67,6 +67,7 @@ use crate::{
     egui_utils::{add_button, down_button, remove_button, up_button},
     utils::pretty_type_name_str,
 };
+use bevy_ecs::entity::Entity;
 use bevy_ecs::world::CommandQueue;
 use bevy_reflect::{
     Array, DynamicEnum, DynamicTuple, DynamicVariant, Enum, EnumInfo, List, ListInfo, Map, Reflect,
@@ -122,6 +123,7 @@ pub fn ui_for_value_readonly(
 pub struct Context<'a> {
     pub world: Option<RestrictedWorldView<'a>>,
     pub queue: Option<&'a mut CommandQueue>,
+    pub entity: Option<Entity>,
 }
 
 /// Function which will be executed for every field recursively, which can be used to skip regular traversal.

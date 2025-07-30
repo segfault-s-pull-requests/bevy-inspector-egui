@@ -46,6 +46,7 @@ use bevy_ecs::query::{QueryFilter, WorldQuery};
 use bevy_ecs::world::CommandQueue;
 use bevy_ecs::{component::ComponentId, prelude::*};
 use bevy_reflect::{Reflect, TypeRegistry};
+use bevy_render::render_graph::NodeRunError;
 use bevy_state::state::{FreelyMutableState, NextState, State};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -73,6 +74,7 @@ pub fn ui_for_value(value: &mut dyn Reflect, ui: &mut egui::Ui, world: &mut Worl
     let mut cx = Context {
         world: Some(RestrictedWorldView::new(world)),
         queue: Some(&mut queue),
+        entity: None,
     };
     let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
     let changed = env.ui_for_reflect(value.as_partial_reflect_mut(), ui);
@@ -134,6 +136,7 @@ pub fn ui_for_resource<R: Resource + Reflect>(world: &mut World, ui: &mut egui::
     let mut cx = Context {
         world: Some(world_view),
         queue: Some(&mut queue),
+        entity: None,
     };
     let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
 
@@ -186,6 +189,7 @@ pub fn ui_for_assets<A: Asset + Reflect>(world: &mut World, ui: &mut egui::Ui) {
     let mut cx = Context {
         world: Some(world_view),
         queue: Some(&mut queue),
+        entity: None,
     };
 
     let mut assets: Vec<_> = assets.iter_mut().collect();
@@ -225,6 +229,7 @@ pub fn ui_for_state<T: FreelyMutableState + Reflect>(world: &mut World, ui: &mut
     let mut cx = Context {
         world: Some(world_view),
         queue: Some(&mut queue),
+        entity: None,
     };
     let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
 
@@ -611,6 +616,7 @@ pub(crate) fn ui_for_entity_components(
             world: Some(world),
             #[allow(clippy::needless_option_as_deref)]
             queue: queue.as_deref_mut(),
+            entity: Some(entity)
         };
 
         let value = match component_view.get_entity_component_reflect(
@@ -742,6 +748,7 @@ pub fn ui_for_entities_shared_components(
     let mut cx = Context {
         world: Some(resources_view),
         queue: Some(&mut queue),
+        entity: None, // TODO
     };
     let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
 
@@ -842,6 +849,7 @@ pub mod by_type_id {
             let mut cx = Context {
                 world: Some(world_view),
                 queue: Some(&mut queue),
+                entity: None,
             };
             let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
 
@@ -905,6 +913,7 @@ pub mod by_type_id {
         let mut cx = Context {
             world: Some(world_view),
             queue: Some(&mut queue),
+            entity: None,
         };
 
         for handle_id in ids {
@@ -967,6 +976,7 @@ pub mod by_type_id {
         let mut cx = Context {
             world: Some(world_view),
             queue: Some(&mut queue),
+            entity: None,
         };
 
         let id = egui::Id::new(handle);
@@ -1060,6 +1070,7 @@ pub mod short_circuit {
             let Context {
                 world: Some(world),
                 queue,
+                entity: None
             } = &mut env.context
             else {
                 errors::no_world_in_context(ui, value.reflect_short_type_path());
@@ -1090,6 +1101,7 @@ pub mod short_circuit {
                 context: &mut Context {
                     world: Some(world),
                     queue: queue.as_deref_mut(),
+                    entity: None
                 },
                 short_circuit: env.short_circuit,
                 short_circuit_readonly: env.short_circuit_readonly,
@@ -1135,6 +1147,7 @@ pub mod short_circuit {
             let Context {
                 world: Some(world),
                 queue,
+                entity: None
             } = &mut env.context
             else {
                 errors::no_world_in_context(ui, type_name);
@@ -1189,6 +1202,7 @@ pub mod short_circuit {
                 context: &mut Context {
                     world: Some(world),
                     queue: queue.as_deref_mut(),
+                    entity: None
                 },
                 short_circuit: env.short_circuit,
                 short_circuit_readonly: env.short_circuit_readonly,
@@ -1240,6 +1254,7 @@ pub mod short_circuit {
             let Context {
                 world: Some(world),
                 queue,
+                entity: None
             } = &mut env.context
             else {
                 errors::no_world_in_context(ui, value.reflect_short_type_path());
@@ -1271,6 +1286,7 @@ pub mod short_circuit {
                 context: &mut Context {
                     world: Some(world),
                     queue: queue.as_deref_mut(),
+                    entity: None
                 },
                 short_circuit: env.short_circuit,
                 short_circuit_readonly: env.short_circuit_readonly,

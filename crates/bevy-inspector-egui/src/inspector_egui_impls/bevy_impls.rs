@@ -13,6 +13,7 @@ use ::{
 
 #[cfg(feature = "bevy_render")]
 use crate::bevy_inspector::errors::{dead_asset_handle, show_error};
+use crate::inspector_egui_impls::InspectorEguiImpl;
 use crate::{
     bevy_inspector::errors::no_world_in_context,
     egui_utils,
@@ -55,6 +56,8 @@ impl InspectorPrimitive for Entity {
                 let Context {
                     world: Some(world),
                     queue,
+                    ..
+                    // entity: Some(entity)
                 } = &mut env.context
                 else {
                     no_world_in_context(ui, "Entity");

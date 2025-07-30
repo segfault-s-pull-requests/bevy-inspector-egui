@@ -1,5 +1,7 @@
-use std::{borrow::Cow, ops::AddAssign, path::PathBuf};
+use std::{borrow::Cow, net::{IpAddr, SocketAddr}, ops::AddAssign, path::PathBuf};
 
+use bevy_animation::AnimationPlayer;
+use bevy_app::Animation;
 use bevy_platform::time::Instant;
 use bevy_reflect::{PartialReflect, Reflect, TypePath};
 use egui::{DragValue, RichText, TextBuffer};
@@ -467,5 +469,77 @@ impl InspectorPrimitive for PathBuf {
 
     fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) {
         ui.text_edit_singleline(&mut self.to_string_lossy());
+    }
+}
+
+pub fn socket_addr_ui(ui: &mut egui::Ui, value: &SocketAddr, mutable: bool) -> Option<SocketAddr> {
+    let mut ip = value.ip();
+    let mut port = value.port();
+    let mut changed = false;
+
+    if !mutable {
+        ui.disable();
+    }
+
+    ui.horizontal(|ui| {
+        ui.label("IP:");
+        match ip {
+            IpAddr::V4(v4) => {
+                let mut octets = v4.octets();
+                for i in 0..4 {
+                    changed |= ui.add(egui::DragValue::new(&mut octets[i])).changed();
+                    if i < 3 {
+                        ui.label(".");
+                    }
+                }
+                ip = IpAddr::V4(octets.into());
+            }
+            IpAddr::V6(v6) => {
+                let mut segments = v6.segments();
+                for i in 0..8 {
+                    changed |= ui.add(egui::DragValue::new(&mut segments[i])).changed();
+                    if i < 7 {
+                        ui.label(":");
+                    }
+                }
+                ip = IpAddr::V6(segments.into());
+            }
+        }
+        ui.label("Port:");
+        changed |= ui.add(egui::DragValue::new(&mut port)).changed();
+    });
+
+    if changed {
+        Some(SocketAddr::new(ip, port))
+    } else {
+        None
+    }
+}
+
+// Optional: Implement InspectorUi for SocketAddr for use with bevy-inspector-egui derive
+impl InspectorPrimitive for SocketAddr {
+    fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        _options: &dyn std::any::Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+    ) -> bool {
+        if let Some(new_addr) = socket_addr_ui(ui, self, true) {
+            *self = new_addr;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn ui_readonly(
+        &self,
+        ui: &mut egui::Ui,
+        _options: &dyn std::any::Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+    ) {
+        socket_addr_ui(ui, self, false);
     }
 }
