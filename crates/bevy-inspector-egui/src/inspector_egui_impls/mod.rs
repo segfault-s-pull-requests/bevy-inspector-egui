@@ -329,6 +329,7 @@ pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
     }
 
     add::<uuid::Uuid>(type_registry);
+    add_of_with_many::<bevy_gizmos::config::GizmoConfigStore>(type_registry, many_unimplemented::<bevy_gizmos::prelude::GizmoConfigStore>);
 }
 
 pub(crate) fn change_slider<T>(

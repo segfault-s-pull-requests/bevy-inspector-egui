@@ -344,3 +344,40 @@ impl InspectorPrimitive for RenderLayers {
         }
     }
 }
+
+impl InspectorPrimitive for bevy_gizmos::prelude::GizmoConfigStore {
+    fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        id: egui::Id,
+        env: InspectorUi<'_, '_>,
+    ) -> bool {
+        let changed = false;
+        // let Some(world) = env.context.world else { 
+        //     no_world_in_context(ui, "Entity");
+        //     return false;
+        // };
+        for (type_id, conf, dyn_conf) in self.iter_mut() {
+            let name = dyn_conf.get_represented_type_info().unwrap().type_path_table();
+            egui::CollapsingHeader::new(name.short_path()).id_salt(name.path()).show(ui, |ui|{
+                crate::reflect_inspector::ui_for_value(conf, ui, env.type_registry);
+
+                egui::CollapsingHeader::new(name.short_path()).show(ui, |ui|{
+                    crate::reflect_inspector::ui_for_value(dyn_conf, ui, env.type_registry);
+                });
+            }).header_response.on_hover_text(name.path());
+        }
+        changed
+    }
+
+    fn ui_readonly(
+        &self,
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        id: egui::Id,
+        env: InspectorUi<'_, '_>,
+    ) {
+        todo!()
+    }
+}
