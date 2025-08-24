@@ -127,6 +127,7 @@ impl<T> Hierarchy<'_, T> {
         let selected = self.selected.contains(entity);
 
         let entity_name = guess_entity_name::guess_entity_name(self.world, entity);
+        let entity_name = format!("{} ({})", entity_name, entity);
         let mut name = RichText::new(entity_name);
         if selected {
             name = name.strong();
@@ -231,7 +232,7 @@ fn paint_default_icon(ui: &mut egui::Ui, openness: f32, response: &egui::Respons
 /// Collection of currently selected entities
 #[derive(Default, Debug, Clone)]
 pub struct SelectedEntities {
-    entities: Vec<Entity>,
+    pub entities: Vec<Entity>,
     last_action: Option<(SelectionMode, Entity)>,
 }
 

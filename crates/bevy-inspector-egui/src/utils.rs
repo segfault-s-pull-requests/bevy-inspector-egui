@@ -12,11 +12,12 @@ pub mod guess_entity_name {
     use crate::restricted_world_view::RestrictedWorldView;
 
     /// Guesses an appropriate entity name like `Light (6)` or falls back to `Entity (8)`
+    /// EAS TODO: go through uses of this and add entity id, since I removed it here
     pub fn guess_entity_name(world: &World, entity: Entity) -> String {
         match world.get_entity(entity) {
             Ok(entity_ref) => {
                 if let Some(name) = entity_ref.get::<Name>() {
-                    return format!("{} ({})", name.as_str(), entity);
+                    return format!("{}", name.as_str());
                 }
 
                 guess_entity_name_inner(

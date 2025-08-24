@@ -39,10 +39,12 @@
 
 use std::any::TypeId;
 use std::marker::PhantomData;
+use std::process::Command;
 
 use crate::utils::{pretty_type_name, pretty_type_name_str};
 use bevy_asset::{Asset, AssetServer, Assets, ReflectAsset, UntypedAssetId};
 use bevy_ecs::query::{QueryFilter, WorldQuery};
+use bevy_ecs::system::SystemBuffer;
 use bevy_ecs::world::CommandQueue;
 use bevy_ecs::{component::ComponentId, prelude::*};
 use bevy_reflect::{Reflect, TypeRegistry};
@@ -51,7 +53,7 @@ use bevy_state::state::{FreelyMutableState, NextState, State};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
-pub(crate) mod errors;
+pub mod errors;
 
 /// UI for displaying the entity hierarchy
 pub mod hierarchy;
@@ -573,7 +575,7 @@ pub fn ui_for_entity(world: &mut World, entity: Entity, ui: &mut egui::Ui) {
 }
 
 /// Display the components of the given entity
-pub(crate) fn ui_for_entity_components(
+pub fn ui_for_entity_components(
     world: &mut RestrictedWorldView<'_>,
     mut queue: Option<&mut CommandQueue>,
     entity: Entity,
@@ -639,7 +641,7 @@ pub(crate) fn ui_for_entity_components(
             set_highlight_style(ui);
         }
 
-        let _response = header.show(ui, |ui| {
+        let response = header.show(ui, |ui| {
             ui.reset_style();
 
             let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
@@ -668,8 +670,16 @@ pub(crate) fn ui_for_entity_components(
             };
         });
 
+        if let Some(queue) = queue.as_mut() {
+            response.header_response.context_menu(|ui| {
+                if ui.button("remove").clicked() {
+                    queue.push(move |world: &mut World| { world.entity_mut(entity).remove_by_id(component_id); })
+                }
+            });
+        }
+
         #[cfg(feature = "documentation")]
-        crate::egui_utils::show_docs(_response.header_response, type_docs);
+        crate::egui_utils::show_docs(response.header_response, type_docs);
         ui.reset_style();
     }
 }

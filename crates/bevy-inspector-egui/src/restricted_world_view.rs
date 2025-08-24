@@ -129,6 +129,12 @@ impl<'a> From<&'a mut World> for RestrictedWorldView<'a> {
     }
 }
 
+impl<'a,'b> From<&'a mut &'b mut World> for RestrictedWorldView<'a> {
+    fn from(value: &'a mut &'b mut World) -> Self {
+        RestrictedWorldView::new(value)
+    }
+}
+
 /// Fundamental methods for working with a [`RestrictedWorldView`]
 impl<'w> RestrictedWorldView<'w> {
     /// Create a new [`RestrictedWorldView`] with permission to access everything.
@@ -139,6 +145,10 @@ impl<'w> RestrictedWorldView<'w> {
             resources: Allowed::everything(),
             components: Allowed::everything(),
         }
+    }
+
+    pub fn components(&self) -> &bevy_ecs::component::Components{
+        self.world.components()
     }
 
     /// Splits the world into one view which may only be used for resource access, and another which may only be used for component access.
