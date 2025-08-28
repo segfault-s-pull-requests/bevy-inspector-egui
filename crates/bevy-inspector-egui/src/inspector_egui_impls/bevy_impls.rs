@@ -119,24 +119,28 @@ impl InspectorPrimitive for Handle<Mesh> {
                 return false;
             }
         };
-        let Some(mesh) = meshes.get_mut(handle) else {
+        let Some(mesh) = meshes.get(handle) else {
             dead_asset_handle(ui, handle.id().untyped());
             return false;
         };
 
         mesh_ui_inner(mesh, ui);
+        let has_indices = mesh.indices().is_some();
 
-        ui.add_enabled_ui(mesh.indices().is_some(), |ui| {
+        ui.add_enabled_ui(has_indices, |ui| {
             if ui.button("Duplicate vertices").clicked() {
+                let mesh= meshes.get_mut(handle).expect("get already suceeded");
                 mesh.duplicate_vertices();
             }
         });
-        ui.add_enabled_ui(mesh.indices().is_none(), |ui| {
+        ui.add_enabled_ui(!has_indices, |ui| {
             if ui.button("Compute flat normals").clicked() {
+                let mesh= meshes.get_mut(handle).expect("get already suceeded");
                 mesh.compute_flat_normals();
             }
         });
         if ui.button("Generate tangents").clicked() {
+            let mesh= meshes.get_mut(handle).expect("get already suceeded");
             let _ = mesh.generate_tangents();
         }
 
