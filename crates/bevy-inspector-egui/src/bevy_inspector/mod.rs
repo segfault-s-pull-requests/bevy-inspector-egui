@@ -1080,7 +1080,7 @@ pub mod short_circuit {
             let Context {
                 world: Some(world),
                 queue,
-                entity: None
+                ..
             } = &mut env.context
             else {
                 errors::no_world_in_context(ui, value.reflect_short_type_path());
@@ -1157,7 +1157,7 @@ pub mod short_circuit {
             let Context {
                 world: Some(world),
                 queue,
-                entity: None
+                ..
             } = &mut env.context
             else {
                 errors::no_world_in_context(ui, type_name);
@@ -1264,7 +1264,7 @@ pub mod short_circuit {
             let Context {
                 world: Some(world),
                 queue,
-                entity: None
+                ..
             } = &mut env.context
             else {
                 errors::no_world_in_context(ui, value.reflect_short_type_path());
